@@ -684,18 +684,18 @@ if os.path.isdir(r'D:\Scripts'):  # проверка, что я дома
     os.chdir(r'D:\Scripts\1_NEC\Source')  # скрипт запускаю дома
 elif os.path.isdir(r'G:\Scripts'):  # проверка, что я на работе
     os.chdir(r'G:\Scripts\1_NEC\Source')  # скрипт запускаю на работе
-ne_nec()
-ne_alc()
-itog_ne()
-
-sec_nec()
-sec_alc()
-itog_sec()
-
-trib_nec()
-trib_alc()
-itog_trib()
-
-trakt_nec17usi()
-trakt_nec18usi()
+# ne_nec()
+# ne_alc()
+# itog_ne()
+#
+# sec_nec()
+# sec_alc()
+# itog_sec()
+#
+# trib_nec()
+# trib_alc()
+# itog_trib()
+#
+# trakt_nec17usi()
+# trakt_nec18usi()
 itog_trakt()
