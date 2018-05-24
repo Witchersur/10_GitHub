@@ -261,78 +261,6 @@ def itog_trib():
     final_trib.close()
 
 
-def trib_nec1():  # поиск трибов в файлах *nec17_user.csv и *nec18_user.csv
-    nec_trib = cat_file('*nec1*_user.csv')
-    num_port = ('01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12', '13', '14', '15', '16', '17',
-                '18', '19', '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '30', '31', '32', '33', '34',
-                '35', '36', '37', '38', '39', '40', '41', '42', '43', '44', '45', '46', '47', '48', '49', '50', '51',
-                '52', '53', '54', '55', '56', '57', '58', '59', '60', '61', '62', '63')
-    change = [('Pair_surgut-inc,[^,]*,work,[^,]*,', ''),
-              ('Pair_surgut-inc,[^,]*,[^,]*,', ''),
-              ('[^,]*,[^,]*,work,[^,]*,', ''),  # для ver18, там нет Pair_surgut-inc
-              ('[^,]*,\dWay,[^,]*ed', ''),
-              (',ON,''|'',OFF,', ','),
-              ('\*Comment.*', ''),
-              ('\*SNCP.*', ''),
-              (',AU4-[^,]*,', ','),
-              (':EXTWB#', '_'),
-              ('[^,]*_99_6,[^,]*,', ',,,'),
-              (',LPT-.-.-(\d{1,2}-\d{1,2},)', r',\1'),
-              (',VC12-[sub]*(\d{1,2}-\d{1,2},)', r',\1'),
-              (',VC12-E1_(8-\d,)', r',\1'),  # C-NodeS1 материнка
-              (',VC12-E1_16-sub-(\d{1,2},)', r',16-\1'),  # C-NodeS1 доп. плата на 16 Е1
-              ('(,\d{1,2})-(\d,)', r'\1-0\2'),
-              (',(\d-\d{1,2},)', r',0\1'),
-              ('(,VC4[-(]''|'',VC\d{1,2}-\d{1,2}VC,''|'',[AV][UC]4-[^,]*,[^,]*,[AV][UC]4-)', ',удаляем_строку,')]
-    excel_mux = open('MUX.csv', 'r')  # файл MUX.csv - экспорт листа MUX файла INC-100MS
-    garb_trib = open('trib_garb.csv', 'w')  # файл исключений trib_garb.csv
-    test_trib = open('trib-test.txt', 'w')  # вывод только занятых портов в файл trib-test.txt
-    final_trib = open('nec_trib.txt', 'w')  # выходной файл nec_trib.txt
-    trib_trakt = {}
-    nec_trib = list_check(nec_trib, change, garb_trib)  # обрабатываем замены и исключения
-    ln = 0
-    while ln < len(nec_trib):  # Построчно проходим весь список
-        name_trakt = re.match('^([^,]*)(?=,)', nec_trib[ln]).group(0)  # имя тракта
-        if re.search('[^,]*,\d\d-\d\d,', nec_trib[ln]):  # если есть мукс,порт вида HMS8095_651,08-02,
-            mux = re.findall('[^,]*,\d\d-\d\d,', nec_trib[ln])  # ищем список всех муксов с портами в строке
-            for x in mux:  # заполняем словарь key(мукс,порт,): Dict(тракт)
-                trib_trakt[x] = name_trakt
-        else:
-            garb_trib.writelines(nec_trib[ln] + ',\n')  # если не нашли, то в мусорный файл
-        del nec_trib[ln]  # удалить обработанную строку в списке
-    for x in trib_trakt:  # заполняем тестовый файл
-        test_trib.writelines(x + trib_trakt[x] + '\n')
-    test_trib.close()
-    garb_trib.close()
-    all_port = 0
-    for line_mux in excel_mux:  # Построчно проходим весь файл
-        if not re.search(r'Географическое название', line_mux):  # убрать заголовок
-            mux = line_mux.split(';')  # заполняем список поделив строку по запятым
-            type_mux = mux[0]  # тип мукса
-            name_mux = (mux[1] + '_' + mux[2] + ',')  # имя мукса
-            list_slot = mux[3:11]  # список возможных плат
-            list_slot = list(filter(None, list_slot))  # список установленных плат, удаляем пустые
-            sl = 0
-            while sl < len(list_slot):  # проходим по рабочим платам
-                if type_mux in {'U-Node_BBM', 'U-Node_WBM'}:  # выбираем кол-во портов от типа мукса
-                    all_port = 63
-                elif type_mux in {'C-Node', 'V-Node', 'V-NodeS'}:
-                    all_port = 32
-                elif type_mux == 'C-NodeS1' and list_slot[sl] == '16':
-                    all_port = 16
-                elif type_mux == 'C-NodeS1' and list_slot[sl] == '08':
-                    all_port = 8
-                for i in range(all_port):
-                    mux_port = (name_mux + list_slot[sl] + '-' + num_port[i] + ',')  # ключ (HMS8095_651,08-01,)
-                    if trib_trakt.get(mux_port):  # если получили значение по ключу из словаря, то
-                        final_trib.writelines(mux_port + trib_trakt[mux_port] + '\n')  # записываем в файл
-                        del trib_trakt[mux_port]  # удаляем найденое значение из словаря
-                    else:
-                        final_trib.writelines(mux_port + 'Свободен\n')  # если не нашли, то свободен
-                sl += 1  # следующая плата
-    final_trib.close()
-
-
 def name_mx(mx, sec):  # ищем имя мукса из имени секций, mx-список муксы и порты; sec-текст секций
     s = []
     mxs = re.findall('(\w+)-(\w+)\DMS\d+', sec)  # из секций получаем список кортежей из пар названий муксов
@@ -385,14 +313,19 @@ def port_nec(lv, ty, mx):
                 mx[p] = 'VC4_' + mh[0].zfill(2)
         elif lv == 0:  # тракты 2М, 2way
             mh = re.findall(r'^(\d\d)-(\d)-(\d)-(\d)$', mx[p])
-            if mh:  # замена для GE '01-3-7-3' на 'VC4_01.TS_373'
+            if mh:  # замена для VC12 '01-3-7-3' на 'VC4_01.TS_373'
                 mx[p] = 'VC4_' + mh[0][0] + '.TS_' + mh[0][1] + mh[0][2] + mh[0][3]
+
             mh = re.findall(r'^[AV][UC]4-\d-\d-\d+-\d+-(\d{1,2})-(\d)-(\d)-(\d)$', mx[p])
-            if mh:  # 'AU4-1-1-9-3-1-3-7-3' на 'VC4_01.TS_373'
-                mx[p] = 'VC4_' + mh[0][0].zfill(2) + '.TS_' + mh[0][1] + mh[0][2] + mh[0][3]
+            if mh:  # 'AU4-1-1-9-3-1-3-7-3' на ''
+                mx[p] = ''
+            # if mh:  # 'AU4-1-1-9-3-1-3-7-3' на 'VC4_01.TS_373'
+            #     mx[p] = 'VC4_' + mh[0][0].zfill(2) + '.TS_' + mh[0][1] + mh[0][2] + mh[0][3]
             mh = re.findall(r'^VC12-....-(\d{1,2})-(\d)-(\d)-(\d)$', mx[p])
-            if mh:  # 'VC12-sub1-2-1-1-1 или VC12-main-2-1-2-1' на 'VC4_01.TS_373'
-                mx[p] = 'VC4_' + mh[0][0].zfill(2) + '.TS_' + mh[0][1] + mh[0][2] + mh[0][3]
+            if mh:  # 'VC12-sub1-2-1-1-1 или VC12-main-2-1-2-1' на ''
+                mx[p] = ''
+            # if mh:  # 'VC12-sub1-2-1-1-1 или VC12-main-2-1-2-1' на 'VC4_01.TS_373'
+            #     mx[p] = 'VC4_' + mh[0][0].zfill(2) + '.TS_' + mh[0][1] + mh[0][2] + mh[0][3]
             mh = re.findall(r'^LPT-\d-\d-(\d{1,2})-(\d{1,2})$', mx[p])
             if mh:  # 'LPT-1-6-8-7' на '08-07'
                 mx[p] = mh[0][0].zfill(2) + '-' + mh[0][1].zfill(2)
@@ -521,10 +454,9 @@ def trakt_nec(source, destin, chng):
     trakt = []
     for ln in nec_tr:  # Построчно проходим весь файл
         bg = re.split(',', ln)
-        name = bg[0]
         lvl = int(bg[1])  # уровень тракта
         tp = int(bg[2])  # тракта PtoP или Broadcast
-        com = 'Comment,' + bg[-1]  # сохраняем комментарий
+        com = bg[-1]  # сохраняем комментарий
         mux = [bg[4], bg[5], bg[6], bg[7]]  # мукс А, порт А, мукс В, порт В
         if tp == 1:  # если тракт Broadcast
             i = bg.index(r'*Z-2')  # ищем *Z-2
@@ -598,16 +530,16 @@ def trakt_nec(source, destin, chng):
 def itog_trakt():
     nec17usi = open('nec17_itog_trakt.csv', 'r')  # вывод только занятых портов в файл nec17_itog_trakt.csv
     nec18usi = open('nec18_itog_trakt.csv', 'r')  # вывод только занятых портов в файл nec18_itog_trakt.csv
+    final_trakt = open('itog_trakt.txt', 'w')  # вывод только занятых портов в файл itog_trakt.txt
+    garb_trakt = open('garb_trakt.csv', 'a')  # файл исключений garb_ne.csv
     nec1 = nec17usi.read().splitlines()
     nec2 = nec18usi.read().splitlines()
+    nec17usi.close()
+    nec18usi.close()
     l2 = 0
     while l2 < len(nec2):  # доп. тракты
         bg2 = re.split(',', nec2[l2])
-        # lv2 = int(bg2[1])  # уровень тракта
-        # tp2 = int(bg2[2])  # тракт PtoP или Broadcast
-        com2 = ','.join(bg2[-2:])  # сохраняем комментарий
-        # mux2 = [bg2[4], bg2[5], bg2[6], bg2[7]]  # мукс А, порт А, мукс В, порт В
-        ln2 = bg2[8:-2]  # выделяем секции и tu в список ln2
+        ln2 = bg2[8:-1]  # выделяем секции и tu в список ln2
         sc2 = []  # список пар 'секция,tu' для доп. трактов
         x = 0
         while x < len(ln2):  # готовим список пар 'секция,tu' для доп. трактов
@@ -617,15 +549,13 @@ def itog_trakt():
                 del ln2[x]  # удаляем секцию
             else:
                 del ln2[x]  # удаляем sncp
+        lensc2 = len(sc2)
         for y in sc2:
-            for ln1 in nec1:  # основные тракты
-                if y in ln1:
-                    bg1 = re.split(',', ln1)
-                    # lv1 = int(bg1[1])  # уровень тракта
-                    # tp1 = int(bg1[2])  # тракт PtoP или Broadcast
-                    com1 = ','.join(bg1[-2:])  # сохраняем комментарий
-                    # mux1 = [bg1[4], bg1[5], bg1[6], bg1[7]]  # мукс А, порт А, мукс В, порт В
-                    ln1 = bg1[8:-2]  # выделяем секции и tu в список ln1
+            for l1, str1 in enumerate(nec1):  # основные тракты
+                if y in str1:
+                    bg1 = re.split(',', str1)
+                    com1 = ','.join(bg1[-1:])  # сохраняем комментарий
+                    ln1 = bg1[8:-1]  # выделяем секции и tu в список ln1
                     sc1 = []  # список пар 'секция,tu' для основных трактов
                     a = 0
                     while a < len(ln1):  # готовим список пар 'секция,tu' для основных трактов
@@ -641,7 +571,7 @@ def itog_trakt():
                         if bg1[4] == bg2[4] and bg1[5] == '':  # если у мукс А нет порта, то
                             bg1[5] = bg2[5]  # порт мукса А осн равен порту мукса А доп тракта
                         elif bg1[6] == bg2[6] and bg1[7] == '':  # если у мукс В нет порта, то
-                            bg1[7] = bg2[3]  # порт мукса В осн равен порту мукса В доп тракта
+                            bg1[7] = bg2[7]  # порт мукса В осн равен порту мукса В доп тракта
                         x = 0
                         while x < len(sc2):  # ищем совпадения 'секция,tu' в списке осн и доп тракта
                             if sc2[x] in sc1:  # если доп 'секция,tu' есть в осн 'секция,tu', то
@@ -650,13 +580,14 @@ def itog_trakt():
                             else:
                                 x += 1  # иначе переходим далее по списку доп
                         if len(sc2) == 0:  # если все доп 'секция,tu' были найдены, то
+                            garb_trakt.writelines(nec2[l2] + '\n')
                             del nec2[l2]  # удаляем весь доп тракт
-                            ln1 = ','.join(bg1[:8]) + ',' + ','.join(sc1[:]) + ',' + com1  # обновляем осн строку
+                            nec1[l1] = ','.join(bg1[:8]) + ',' + ','.join(sc1[:]) + ',' + com1  # обновляем осн строку
                             break
                         else:
                             for x in range(len(sc2)):  # не найденные секции добавляем в осн список
                                 sc1.insert(sc1_ind + x + 1, sc2[x])  # вставляем по индексу справа
-                            ln1 = ','.join(bg1[:8]) + ',' + ','.join(sc1[:]) + ',' + com1  # обновляем осн строку
+                            nec1[l1] = ','.join(bg1[:8]) + ',' + ','.join(sc1[:]) + ',' + com1  # обновляем осн строку
                             l2 += 1
                             break
                     elif bg1[6] == bg2[4] or bg1[4] == bg2[6]:  # муксы доп и осн тракта в разных местах
@@ -669,15 +600,23 @@ def itog_trakt():
                                 sc1_ind = sc1.index(sc2[x])  # запоминаем место в осн списке
                                 del sc2[x]  # удаляем найденную доп 'секция,tu'
                         if len(sc2) == 0:  # если все доп 'секция,tu' были найдены, то
+                            garb_trakt.writelines(nec2[l2] + '\n')
                             del nec2[l2]  # удаляем весь доп тракт
-                            ln1 = ','.join(bg1[:8]) + ',' + ','.join(sc1[:]) + ',' + com1  # обновляем осн строку
+                            nec1[l1] = ','.join(bg1[:8]) + ',' + ','.join(sc1[:]) + ',' + com1  # обновляем осн строку
                             break
                         else:
                             for x in range(len(sc2)):  # не найденные секции добавляем в осн список
                                 sc1.insert(sc1_ind - x - 1, sc2[x])  # вставляем по индексу слева
-                            ln1 = ','.join(bg1[:8]) + ',' + ','.join(sc1[:]) + ',' + com1  # обновляем осн строку
+                            nec1[l1] = ','.join(bg1[:8]) + ',' + ','.join(sc1[:]) + ',' + com1  # обновляем осн строку
                             l2 += 1
                             break
+        # print(nec2[l2] + '\n')
+        if len(sc2) == lensc2:
+            l2 += 1
+    nec1 = sorted(nec1 + nec2)  # сортируем итоговый список
+    final_trakt.write('\n'.join(nec1) + '\n')  # заполняем итоговый файл, объединив все строки в один текст
+    garb_trakt.close()
+    final_trakt.close()
 
 
 if os.path.isdir(r'D:\Scripts'):  # проверка, что я дома
